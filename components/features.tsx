@@ -10,6 +10,9 @@ gsap.registerPlugin(ScrollTrigger);
 // Frames exported from /videos/animal.mp4 (241 frames @ 24fps)
 const AMENITIES_FRAME_COUNT = 241;
 
+// Frames exported from /videos/demo.mp4, downsampled to 12fps (181 frames)
+const THEATRE_FRAME_COUNT = 181;
+
 export default function Features() {
   /* ==========================================================
       REFS
@@ -23,7 +26,7 @@ export default function Features() {
 
   // Black Theatre
   const theatreRef = useRef<HTMLDivElement>(null);
-  const theatreVideoRef = useRef<HTMLVideoElement>(null);
+  const theatreVideoRef = useRef<HTMLCanvasElement>(null);
 
   // Story Progress
   const progressFillRef = useRef<HTMLDivElement>(null);
@@ -33,12 +36,19 @@ export default function Features() {
   ========================================================== */
 
   useEffect(() => {
-    if (!sectionRef.current || !videoRef.current) return;
+    if (!sectionRef.current || !videoRef.current || !theatreVideoRef.current)
+      return;
 
     const sequence = createFrameSequence(
       videoRef.current,
       "/frames/animal",
       AMENITIES_FRAME_COUNT
+    );
+
+    const theatreSequence = createFrameSequence(
+      theatreVideoRef.current,
+      "/frames/demo",
+      THEATRE_FRAME_COUNT
     );
 
     const ctx = gsap.context(() => {
@@ -320,7 +330,6 @@ export default function Features() {
           filter: "brightness(1) blur(0px)",
           ease: "power4.out",
           duration: 0.35,
-          onStart: () => theatreVideoRef.current?.play(),
         }
       );
 
@@ -433,11 +442,34 @@ export default function Features() {
         },
         "<"
       );
+
+      /* =====================================================
+          THEATRE SCRUB
+          Walkthrough frames run from the video fade-in until
+          the outro begins, driven entirely by scroll.
+      ====================================================== */
+
+      if (theatreSequence) {
+        const videoStart = 0.18; // after the black pause
+        const videoEnd = theatre.duration() - 0.25; // before the outro
+
+        theatre.to(
+          theatreSequence.playhead,
+          {
+            frame: THEATRE_FRAME_COUNT - 1,
+            duration: videoEnd - videoStart,
+            ease: "none",
+            onUpdate: theatreSequence.render,
+          },
+          videoStart
+        );
+      }
     }, sectionRef);
 
     return () => {
       ctx.revert();
       sequence?.destroy();
+      theatreSequence?.destroy();
     };
   }, []);
 
@@ -675,14 +707,11 @@ export default function Features() {
 
   <div ref={theatreRef} className="black-theatre">
 
-    {/* Fullscreen Walkthrough Video */}
-    <video
+    {/* Fullscreen Walkthrough Video — scroll-driven frame sequence */}
+    <canvas
       ref={theatreVideoRef}
-      src="/videos/demo.mp4"
-      muted
-      playsInline
-      preload="auto"
       className="theatre-video"
+      aria-hidden="true"
     />
 
     {/* Cinematic Overlay */}
