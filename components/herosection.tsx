@@ -3,18 +3,11 @@
 import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { createFrameSequence } from "@/lib/frame-sequence";
 
 gsap.registerPlugin(ScrollTrigger);
 
-/* ==========================================================
-    FRAME SEQUENCE
-    Exported from /videos/hero-reveal.mp4 (121 frames @ 24fps):
-    ffmpeg -i hero-reveal.mp4 -an -c:v libwebp -quality 78 public/frames/hero/%03d.webp
-========================================================== */
-
 const FRAME_COUNT = 121;
-const frameSrc = (i: number) =>
-  `/frames/hero/${String(i + 1).padStart(3, "0")}.webp`;
 
 export default function HeroSection() {
   const sectionRef = useRef<HTMLElement>(null);
@@ -26,63 +19,10 @@ export default function HeroSection() {
   useEffect(() => {
     const section = sectionRef.current;
     const canvas = canvasRef.current;
-    const ctx2d = canvas?.getContext("2d");
-    if (!section || !canvas || !ctx2d) return;
+    if (!section || !canvas) return;
 
-    /* =====================================================
-        PRELOAD FRAMES
-    ====================================================== */
-
-    const images: HTMLImageElement[] = [];
-    const loaded: boolean[] = new Array(FRAME_COUNT).fill(false);
-    const playhead = { frame: 0 };
-    let drawnFrame = -1;
-
-    // Draw the requested frame, falling back to the nearest
-    // earlier frame that has finished loading.
-    const render = (force = false) => {
-      let i = Math.round(playhead.frame);
-      while (i > 0 && !loaded[i]) i--;
-      if (!loaded[i] || (i === drawnFrame && !force)) return;
-      drawnFrame = i;
-
-      const img = images[i];
-      const cw = canvas.width;
-      const ch = canvas.height;
-
-      // object-fit: cover
-      const scale = Math.max(cw / img.naturalWidth, ch / img.naturalHeight);
-      const w = img.naturalWidth * scale;
-      const h = img.naturalHeight * scale;
-      ctx2d.drawImage(img, (cw - w) / 2, (ch - h) / 2, w, h);
-    };
-
-    for (let i = 0; i < FRAME_COUNT; i++) {
-      const img = new Image();
-      img.decoding = "async";
-      img.onload = () => {
-        loaded[i] = true;
-        // Redraw if this frame is the one we should be showing now
-        if (i <= Math.round(playhead.frame) && i > drawnFrame) render(true);
-      };
-      img.src = frameSrc(i);
-      images.push(img);
-    }
-
-    /* =====================================================
-        CANVAS SIZING (DPR aware)
-    ====================================================== */
-
-    const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = Math.round(canvas.clientWidth * dpr);
-      canvas.height = Math.round(canvas.clientHeight * dpr);
-      ctx2d.imageSmoothingQuality = "high";
-      render(true);
-    };
-
-    resize();
-    window.addEventListener("resize", resize);
+    const sequence = createFrameSequence(canvas, "/frames/hero", FRAME_COUNT);
+    if (!sequence) return;
 
     /* =====================================================
         SCROLL TIMELINE
@@ -107,11 +47,11 @@ export default function HeroSection() {
 
       // Video frames span the full scroll (0 → 1)
       tl.to(
-        playhead,
+        sequence.playhead,
         {
           frame: FRAME_COUNT - 1,
           duration: 1,
-          onUpdate: () => render(),
+          onUpdate: sequence.render,
         },
         0
       );
@@ -149,9 +89,8 @@ export default function HeroSection() {
     }, section);
 
     return () => {
-      window.removeEventListener("resize", resize);
       gctx.revert();
-      images.forEach((img) => (img.onload = null));
+      sequence.destroy();
     };
   }, []);
 

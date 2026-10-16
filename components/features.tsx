@@ -3,8 +3,12 @@
 import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { createFrameSequence } from "@/lib/frame-sequence";
 
 gsap.registerPlugin(ScrollTrigger);
+
+// Frames exported from /videos/animal.mp4 (241 frames @ 24fps)
+const AMENITIES_FRAME_COUNT = 241;
 
 export default function Features() {
   /* ==========================================================
@@ -13,8 +17,9 @@ export default function Features() {
 
   const sectionRef = useRef<HTMLElement>(null);
 
-  // White World Video
-  const videoRef = useRef<HTMLVideoElement>(null);
+  // White World Video (scroll-scrubbed frame sequence)
+  const videoWrapperRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLCanvasElement>(null);
 
   // Black Theatre
   const theatreRef = useRef<HTMLDivElement>(null);
@@ -28,9 +33,37 @@ export default function Features() {
   ========================================================== */
 
   useEffect(() => {
-    if (!sectionRef.current) return;
+    if (!sectionRef.current || !videoRef.current) return;
+
+    const sequence = createFrameSequence(
+      videoRef.current,
+      "/frames/animal",
+      AMENITIES_FRAME_COUNT
+    );
 
     const ctx = gsap.context(() => {
+      /* =====================================================
+          WHITE WORLD SCRUB
+          Pin the video and drive its frames purely by scroll.
+          Created first so later triggers account for the pin.
+      ====================================================== */
+
+      if (sequence) {
+        gsap.to(sequence.playhead, {
+          frame: AMENITIES_FRAME_COUNT - 1,
+          ease: "none",
+          onUpdate: sequence.render,
+          scrollTrigger: {
+            trigger: videoWrapperRef.current,
+            start: "center center",
+            end: "+=250%",
+            pin: true,
+            scrub: 0.5,
+            anticipatePin: 1,
+          },
+        });
+      }
+
       /* =====================================================
           INITIAL STATE
       ====================================================== */
@@ -402,7 +435,10 @@ export default function Features() {
       );
     }, sectionRef);
 
-    return () => ctx.revert();
+    return () => {
+      ctx.revert();
+      sequence?.destroy();
+    };
   }, []);
 
   /* ==========================================================
@@ -435,19 +471,14 @@ export default function Features() {
 
     {/* Main Video Container */}
 
-    <div className="features-video-wrapper">
+    <div ref={videoWrapperRef} className="features-video-wrapper">
 
-      {/* Background Video */}
+      {/* Background Video — scroll-driven frame sequence */}
 
-      <video
+      <canvas
         ref={videoRef}
-        src="/videos/animal.mp4"
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="auto"
         className="feature-video"
+        aria-hidden="true"
       />
 
       {/* Cinematic Overlay */}
