@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import Image from "next/image";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { playWhileVisible } from "@/lib/play-while-visible";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -41,7 +42,7 @@ export default function Info() {
   const sectionRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    const ctx = gsap.context(() => {
+    const ctx = gsap.context((self) => {
       /* =========================
          SECTION HEADING
       ========================= */
@@ -180,6 +181,9 @@ export default function Info() {
           scrub: true,
         },
       });
+
+      // Ambient loops only run while this section is on screen
+      playWhileVisible(sectionRef.current, self);
     }, sectionRef);
 
     return () => ctx.revert();

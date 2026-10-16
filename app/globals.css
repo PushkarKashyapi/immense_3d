@@ -25,6 +25,13 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Pause CSS keyframe loops in sections scrolled out of view
+   (toggled by lib/play-while-visible.ts) */
+[data-offscreen],
+[data-offscreen] * {
+  animation-play-state: paused !important;
+}
+
 /* ===========================================================
    PREMIUM FEATURES SECTION
 =========================================================== */
@@ -1141,9 +1148,12 @@ body {
 }
 
 .story-progress-fill{
-    width:0%;
+    width:100%;
     height:100%;
     background:#fff;
+    /* animated with scaleX (compositor only) instead of width */
+    transform:scaleX(0);
+    transform-origin:left center;
 }
 
 .story-progress-labels{

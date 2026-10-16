@@ -4,10 +4,12 @@ import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { createFrameSequence } from "@/lib/frame-sequence";
+import frames from "@/lib/frame-manifest.json";
 
 gsap.registerPlugin(ScrollTrigger);
 
-const FRAME_COUNT = 121;
+// Frame count is written by scripts/export-frames.mjs
+const FRAME_COUNT = frames.hero.count;
 
 export default function HeroSection() {
   const sectionRef = useRef<HTMLElement>(null);
@@ -21,7 +23,9 @@ export default function HeroSection() {
     const canvas = canvasRef.current;
     if (!section || !canvas) return;
 
-    const sequence = createFrameSequence(canvas, "/frames/hero", FRAME_COUNT);
+    const sequence = createFrameSequence(canvas, "/frames/hero", FRAME_COUNT, {
+      priority: "high",
+    });
     if (!sequence) return;
 
     /* =====================================================

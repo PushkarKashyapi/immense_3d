@@ -4,14 +4,13 @@ import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { createFrameSequence } from "@/lib/frame-sequence";
+import frames from "@/lib/frame-manifest.json";
 
 gsap.registerPlugin(ScrollTrigger);
 
-// Frames exported from /videos/animal.mp4 (241 frames @ 24fps)
-const AMENITIES_FRAME_COUNT = 241;
-
-// Frames exported from /videos/demo.mp4 (361 frames @ 24fps)
-const THEATRE_FRAME_COUNT = 361;
+// Frame counts are written by scripts/export-frames.mjs
+const AMENITIES_FRAME_COUNT = frames.animal.count;
+const THEATRE_FRAME_COUNT = frames.demo.count;
 
 export default function Features() {
   /* ==========================================================
@@ -42,13 +41,15 @@ export default function Features() {
     const sequence = createFrameSequence(
       videoRef.current,
       "/frames/animal",
-      AMENITIES_FRAME_COUNT
+      AMENITIES_FRAME_COUNT,
+      { priority: "low" }
     );
 
     const theatreSequence = createFrameSequence(
       theatreVideoRef.current,
       "/frames/demo",
-      THEATRE_FRAME_COUNT
+      THEATRE_FRAME_COUNT,
+      { priority: "low" }
     );
 
     const ctx = gsap.context(() => {
@@ -308,7 +309,7 @@ export default function Features() {
           start: "top top",
           end: "+=4000",
           pin: true,
-          scrub: 1,
+          scrub: 0.5, // Lenis already smooths the input
           anticipatePin: 1,
         },
       });
@@ -348,7 +349,7 @@ export default function Features() {
       ====================================================== */
 
       theatre.to(progressFillRef.current, {
-        width: "33%",
+        scaleX: 0.33,
         duration: 0.2,
       });
 
@@ -375,7 +376,7 @@ export default function Features() {
       ====================================================== */
 
       theatre.to(progressFillRef.current, {
-        width: "66%",
+        scaleX: 0.66,
         duration: 0.2,
       });
 
@@ -402,7 +403,7 @@ export default function Features() {
       ====================================================== */
 
       theatre.to(progressFillRef.current, {
-        width: "100%",
+        scaleX: 1,
         duration: 0.2,
       });
 

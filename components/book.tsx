@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { playWhileVisible } from "@/lib/play-while-visible";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 gsap.registerPlugin(ScrollTrigger);
@@ -73,7 +75,7 @@ export default function Books() {
   const [flipping, setFlipping] = useState(false);
 
   useEffect(() => {
-    const ctx = gsap.context(() => {
+    const ctx = gsap.context((self) => {
       /* ---------------- GRAND BOOK ENTRY ---------------- */
 
       gsap.from(bookRef.current, {
@@ -115,6 +117,9 @@ export default function Books() {
         yoyo: true,
         ease: "sine.inOut",
       });
+
+      // Ambient loops only run while this section is on screen
+      playWhileVisible(sectionRef.current, self);
     }, sectionRef);
 
     return () => ctx.revert();
@@ -236,9 +241,11 @@ export default function Books() {
       {/* RIGHT PAGE */}
       <div className="book-right">
         <div className="book-image-frame">
-          <img
+          <Image
             src={current.image}
             alt={current.title}
+            fill
+            sizes="(max-width: 768px) 90vw, 45vw"
             className="book-image"
           />
 

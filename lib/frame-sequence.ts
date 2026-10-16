@@ -1,9 +1,14 @@
 /* ==========================================================
     SCROLL FRAME SEQUENCE
-    Preloads a numbered WebP sequence and draws a frame onto a
-    canvas (object-fit: cover). Frames are exported from the
-    source video with:
-    ffmpeg -i in.mp4 -an -c:v libwebp -quality 95 out/%03d.webp
+    Downloads a numbered WebP sequence and draws the frame under
+    the playhead onto a canvas (object-fit: cover). Frames are
+    exported from the source videos with scripts/export-frames.mjs.
+
+    Frames are fetched as Blobs and decoded with
+    createImageBitmap(blob), which always decodes off the main
+    thread. Only already-decoded frames are ever drawn, so a
+    scroll frame never waits on a decode: if the exact frame
+    isn't ready yet, the nearest decoded one is shown instead.
 ========================================================== */
 
 export type FrameSequence = {
@@ -14,95 +19,210 @@ export type FrameSequence = {
   destroy: () => void;
 };
 
-// Frames kept pre-decoded on each side of the playhead. Decoding
-// happens off the main thread, so drawing never stalls on a decode.
-const DECODE_RADIUS = 8;
+type Options = {
+  /** Network priority for the frame downloads. */
+  priority?: Priority;
+};
+
+// Decoded frames kept around the playhead (~8MB each at 1080p)
+const KEEP_RADIUS = 14;
+// How far ahead (in the direction of travel) to decode
+const DECODE_AHEAD = 12;
+// Parallel decodes. More just queues stale work behind fresh work.
+const MAX_IN_FLIGHT = 6;
+// Typical createImageBitmap latency; decodes aim where the playhead
+// will be by the time they finish, not where it is now.
+const DECODE_LATENCY_MS = 50;
+// How far from the playhead to look for a stand-in decoded frame
+const FALLBACK_RADIUS = 24;
+
+/* -----------------------------------------------------------
+    Shared download queue. Firing ~1,400 fetches at once makes
+    the browser reject most of them ("Failed to fetch"), so every
+    sequence on the page shares a small pool: high-priority jobs
+    (the hero) first, failed downloads retried with backoff.
+----------------------------------------------------------- */
+
+const MAX_DOWNLOADS = 8;
+const MAX_RETRIES = 3;
+
+type Priority = "high" | "auto" | "low";
+type Job = {
+  url: string;
+  priority: Priority;
+  signal: AbortSignal;
+  onBlob: (blob: Blob) => void;
+  attempt: number;
+};
+
+const queues: Record<Priority, Job[]> = { high: [], auto: [], low: [] };
+let activeDownloads = 0;
+
+function enqueue(job: Job) {
+  queues[job.priority].push(job);
+  drainQueue();
+}
+
+function drainQueue() {
+  while (activeDownloads < MAX_DOWNLOADS) {
+    const job =
+      queues.high.shift() ?? queues.auto.shift() ?? queues.low.shift();
+    if (!job) return;
+    if (job.signal.aborted) continue;
+
+    activeDownloads++;
+    fetch(job.url, { priority: job.priority, signal: job.signal })
+      .then((res) => (res.ok ? res.blob() : Promise.reject(res.status)))
+      .then(job.onBlob)
+      .catch(() => {
+        if (job.signal.aborted || job.attempt >= MAX_RETRIES) return;
+        job.attempt++;
+        setTimeout(() => enqueue(job), 250 * job.attempt);
+      })
+      .finally(() => {
+        activeDownloads--;
+        drainQueue();
+      });
+  }
+}
 
 export function createFrameSequence(
   canvas: HTMLCanvasElement,
   dir: string,
-  frameCount: number
+  frameCount: number,
+  { priority = "auto" }: Options = {}
 ): FrameSequence | null {
   const ctx2d = canvas.getContext("2d");
   if (!ctx2d) return null;
 
-  const images: HTMLImageElement[] = [];
-  const loaded: boolean[] = new Array(frameCount).fill(false);
+  const blobs: (Blob | undefined)[] = new Array(frameCount);
   const bitmaps = new Map<number, ImageBitmap>();
   const decoding = new Set<number>();
+  const abort = new AbortController();
   const playhead = { frame: 0 };
   let drawnFrame = -1;
-  let drawnWidth = 0;
   let destroyed = false;
+  let visible = true;
 
-  const source = (i: number) => bitmaps.get(i) ?? images[i];
+  const target = () =>
+    Math.round(Math.min(Math.max(playhead.frame, 0), frameCount - 1));
 
-  // Nearest loaded frame at or before i
-  const nearestLoaded = (i: number) => {
-    while (i > 0 && !loaded[i]) i--;
-    return loaded[i] ? i : -1;
+  // Playhead velocity in frames/ms, smoothed, for decode prediction
+  let lastTarget = 0;
+  let lastMove = 0;
+  let velocity = 0;
+
+  const trackVelocity = (t: number) => {
+    const now = performance.now();
+    if (t !== lastTarget) {
+      const dt = Math.max(now - lastMove, 1);
+      velocity = velocity * 0.6 + ((t - lastTarget) / dt) * 0.4;
+      lastTarget = t;
+      lastMove = now;
+    }
   };
 
-  const drawCover = (img: CanvasImageSource, w0: number, h0: number) => {
+  // Closest decoded frame to i, preferring i itself
+  const nearestDecoded = (i: number) => {
+    for (let d = 0; d <= FALLBACK_RADIUS; d++) {
+      if (bitmaps.has(i - d)) return i - d;
+      if (bitmaps.has(i + d)) return i + d;
+    }
+    return -1;
+  };
+
+  const draw = (force: boolean) => {
+    const t = target();
+    trackVelocity(t);
+    evictFarFrames(t);
+    pump();
+
+    const i = nearestDecoded(t);
+    if (i < 0 || (i === drawnFrame && !force)) return;
+    drawnFrame = i;
+
+    const bm = bitmaps.get(i)!;
     const cw = canvas.width;
     const ch = canvas.height;
-    const scale = Math.max(cw / w0, ch / h0);
-    const w = w0 * scale;
-    const h = h0 * scale;
-    ctx2d.drawImage(img, (cw - w) / 2, (ch - h) / 2, w, h);
+    const scale = Math.max(cw / bm.width, ch / bm.height);
+    const w = bm.width * scale;
+    const h = bm.height * scale;
+    ctx2d.drawImage(bm, (cw - w) / 2, (ch - h) / 2, w, h);
   };
 
-  // Draw the requested frame, falling back to the nearest
-  // earlier frame that has finished loading.
-  const draw = (force: boolean) => {
-    const target = Math.round(
-      Math.min(Math.max(playhead.frame, 0), frameCount - 1)
-    );
-    const i = nearestLoaded(target);
-    if (i < 0) return;
-    if (i === drawnFrame && canvas.width === drawnWidth && !force) return;
-    drawnFrame = i;
-    drawnWidth = canvas.width;
-
-    const { naturalWidth, naturalHeight } = images[i];
-    drawCover(source(i), naturalWidth, naturalHeight);
-
-    updateDecodeWindow(target);
+  const releaseBitmaps = () => {
+    bitmaps.forEach((bm) => bm.close());
+    bitmaps.clear();
+    drawnFrame = -1;
   };
 
-  // Keep ImageBitmaps for frames near the playhead, release the rest
-  const updateDecodeWindow = (center: number) => {
-    if (typeof createImageBitmap !== "function") return;
-
+  const evictFarFrames = (t: number) => {
     for (const [i, bm] of bitmaps) {
-      if (Math.abs(i - center) > DECODE_RADIUS + 4) {
+      if (Math.abs(i - t) > KEEP_RADIUS) {
         bm.close();
         bitmaps.delete(i);
       }
     }
+  };
 
-    for (let d = 0; d <= DECODE_RADIUS; d++) {
-      for (const i of d === 0 ? [center] : [center + d, center - d]) {
-        if (i < 0 || i >= frameCount || !loaded[i]) continue;
-        if (bitmaps.has(i) || decoding.has(i)) continue;
-        decoding.add(i);
-        createImageBitmap(images[i])
-          .then((bm) => {
-            decoding.delete(i);
-            const c = Math.round(playhead.frame);
-            if (destroyed || Math.abs(i - c) > DECODE_RADIUS + 4) {
-              bm.close();
-              return;
-            }
-            bitmaps.set(i, bm);
-          })
-          .catch(() => decoding.delete(i));
+  /* -----------------------------------------------------------
+      Decode scheduler. A small pool of decodes; each free slot
+      takes the undecoded frame nearest to where the playhead is
+      predicted to be when the decode lands, looking ahead in the
+      direction of travel first. Frames the playhead has already
+      passed are never queued, so fast scrolling doesn't build a
+      backlog of stale work.
+  ----------------------------------------------------------- */
+
+  const nextToDecode = () => {
+    const t = target();
+    const moving = performance.now() - lastMove < 120;
+    const v = moving ? velocity : 0;
+    const lead = Math.max(-10, Math.min(10, Math.round(v * DECODE_LATENCY_MS)));
+    const center = Math.min(Math.max(t + lead, 0), frameCount - 1);
+    const dir = v < 0 ? -1 : 1;
+
+    for (let d = 0; d <= DECODE_AHEAD; d++) {
+      for (const i of d === 0 ? [center] : [center + dir * d, center - dir * d]) {
+        if (i < 0 || i >= frameCount || Math.abs(i - t) > KEEP_RADIUS) continue;
+        if (blobs[i] && !bitmaps.has(i) && !decoding.has(i)) return i;
       }
+    }
+    return -1;
+  };
+
+  const pump = () => {
+    while (visible && !destroyed && decoding.size < MAX_IN_FLIGHT) {
+      const i = nextToDecode();
+      if (i < 0) return;
+      decoding.add(i);
+      createImageBitmap(blobs[i]!)
+        .then((bm) => {
+          decoding.delete(i);
+          const t = target();
+          if (!visible || destroyed || Math.abs(i - t) > KEEP_RADIUS) {
+            bm.close();
+          } else {
+            bitmaps.set(i, bm);
+            // Show it if it beats what's on screen
+            if (drawnFrame < 0 || Math.abs(i - t) < Math.abs(drawnFrame - t)) {
+              draw(true);
+            }
+          }
+          pump();
+        })
+        .catch(() => {
+          decoding.delete(i);
+          pump();
+        });
     }
   };
 
-  // Coarse-to-fine load order (every 16th frame, then 8th, 4th...)
-  // so fast scrubbing has a nearby frame long before all have loaded.
+  /* -----------------------------------------------------------
+      Download coarse-to-fine (every 16th frame, then 8th, 4th...)
+      so fast scrubbing has a nearby frame long before all arrive.
+  ----------------------------------------------------------- */
+
   const order: number[] = [];
   const queued = new Set<number>();
   for (let step = 16; step >= 1; step /= 2) {
@@ -115,29 +235,51 @@ export function createFrameSequence(
   }
 
   for (const i of order) {
-    const img = new Image();
-    img.decoding = "async";
-    img.onload = () => {
-      loaded[i] = true;
-      // Redraw if this frame is a better match than what's on screen
-      if (i === nearestLoaded(Math.round(playhead.frame))) draw(true);
-    };
-    img.src = `${dir}/${String(i + 1).padStart(3, "0")}.webp`;
-    images[i] = img;
+    enqueue({
+      url: `${dir}/${String(i + 1).padStart(3, "0")}.webp`,
+      priority,
+      signal: abort.signal,
+      attempt: 0,
+      onBlob: (blob) => {
+        blobs[i] = blob;
+        if (Math.abs(i - target()) <= KEEP_RADIUS) pump();
+      },
+    });
   }
 
-  // Full-density backing store so upscaling uses the canvas's
-  // high-quality smoothing rather than the compositor's
+  /* -----------------------------------------------------------
+      Full-density backing store so scaling uses the canvas's
+      high-quality smoothing. Only reallocate when the element
+      really changes size (mobile URL bar show/hide fires window
+      resizes constantly).
+  ----------------------------------------------------------- */
+
   const resize = () => {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = Math.round(canvas.clientWidth * dpr);
-    canvas.height = Math.round(canvas.clientHeight * dpr);
+    const w = Math.round(canvas.clientWidth * dpr);
+    const h = Math.round(canvas.clientHeight * dpr);
+    if (w === canvas.width && h === canvas.height) return;
+    canvas.width = w;
+    canvas.height = h;
     ctx2d.imageSmoothingQuality = "high";
     draw(true);
   };
 
   resize();
-  window.addEventListener("resize", resize);
+  const resizeObserver = new ResizeObserver(resize);
+  resizeObserver.observe(canvas);
+
+  // Drop decoded frames while the canvas is far off screen; idle
+  // sequences shouldn't hold ~200MB of bitmaps.
+  const visibilityObserver = new IntersectionObserver(
+    ([entry]) => {
+      visible = entry.isIntersecting;
+      if (visible) draw(true);
+      else releaseBitmaps();
+    },
+    { rootMargin: "100% 0px" }
+  );
+  visibilityObserver.observe(canvas);
 
   return {
     playhead,
@@ -145,10 +287,10 @@ export function createFrameSequence(
     render: () => draw(false),
     destroy: () => {
       destroyed = true;
-      window.removeEventListener("resize", resize);
-      images.forEach((img) => (img.onload = null));
-      bitmaps.forEach((bm) => bm.close());
-      bitmaps.clear();
+      abort.abort();
+      resizeObserver.disconnect();
+      visibilityObserver.disconnect();
+      releaseBitmaps();
     },
   };
 }

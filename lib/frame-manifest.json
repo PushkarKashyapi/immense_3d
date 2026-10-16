@@ -1,0 +1,14 @@
+{
+  "hero": {
+    "count": 241,
+    "fps": 48
+  },
+  "animal": {
+    "count": 481,
+    "fps": 48
+  },
+  "demo": {
+    "count": 721,
+    "fps": 48
+  }
+}

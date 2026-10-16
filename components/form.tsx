@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import Image from "next/image";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { playWhileVisible } from "@/lib/play-while-visible";
 import { ArrowUpRight } from "lucide-react";
 
 gsap.registerPlugin(ScrollTrigger);
@@ -11,7 +13,7 @@ export default function FormSection() {
   const sectionRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    const ctx = gsap.context(() => {
+    const ctx = gsap.context((self) => {
       /* ---------- Heading ---------- */
       gsap.from(".form-heading > *", {
         opacity: 0,
@@ -106,6 +108,9 @@ gsap.to(".model-glow", {
           start: "top 80%",
         },
       });
+
+      // Ambient loops only run while this section is on screen
+      playWhileVisible(sectionRef.current, self, [floatTL]);
     }, sectionRef);
 
     return () => ctx.revert();
@@ -136,10 +141,12 @@ gsap.to(".model-glow", {
             <div className="model-glow" />
 
             {/* Replace with your PNG render */}
-            <img
+            <Image
               src="/images/former.png"
               alt="Luxury Residential Tower"
-              className="blender-model"
+              width={500}
+              height={500}
+              className="blender-model h-auto"
             />
           </div>
         </div>

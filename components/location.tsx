@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { playWhileVisible } from "@/lib/play-while-visible";
 import { MapPin } from "lucide-react";
 
 gsap.registerPlugin(ScrollTrigger);
@@ -51,7 +52,7 @@ export default function Location() {
   const [active, setActive] = useState(0);
 
   useEffect(() => {
-    const ctx = gsap.context(() => {
+    const ctx = gsap.context((self) => {
       gsap.from(".location-heading", {
         opacity: 0,
         y: 60,
@@ -105,6 +106,9 @@ export default function Location() {
         yoyo: true,
         ease: "sine.inOut",
       });
+
+      // Ambient loops only run while this section is on screen
+      playWhileVisible(sectionRef.current, self);
     }, sectionRef);
 
     const interval = setInterval(() => {

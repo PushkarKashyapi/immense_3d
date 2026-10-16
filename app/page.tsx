@@ -8,10 +8,12 @@ import Location from "@/components/location";
 import Proof from "@/components/proof";
 import FormSection from "@/components/form";
 import Footer from "@/components/footer";
+import SmoothScroll from "@/components/smooth-scroll";
 
 export default function Home() {
   return (
     <main className="bg-black text-white">
+      <SmoothScroll />
       <Navbar />
       <HeroSection />
       <Features />

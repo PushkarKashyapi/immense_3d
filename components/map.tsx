@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { playWhileVisible } from "@/lib/play-while-visible";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -27,7 +28,7 @@ export default function MapSection() {
   const mapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const ctx = gsap.context(() => {
+    const ctx = gsap.context((self) => {
       // Heading Reveal
       gsap.from(".map-heading", {
         opacity: 0,
@@ -100,6 +101,9 @@ export default function MapSection() {
           ease: "sine.inOut",
         });
       });
+
+      // Ambient loops only run while this section is on screen
+      playWhileVisible(sectionRef.current, self);
     }, sectionRef);
 
     return () => ctx.revert();

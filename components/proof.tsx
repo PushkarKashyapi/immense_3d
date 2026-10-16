@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { playWhileVisible } from "@/lib/play-while-visible";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -45,7 +46,7 @@ export default function Proof() {
   const sectionRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-  const ctx = gsap.context(() => {
+  const ctx = gsap.context((self) => {
     // Entire section fades in slowly
     gsap.from(".proof-container", {
       opacity: 0,
@@ -139,6 +140,9 @@ export default function Proof() {
       ease: "none",
       stagger: 0.2,
     });
+
+    // Ambient loops only run while this section is on screen
+    playWhileVisible(sectionRef.current, self);
   }, sectionRef);
 
   return () => ctx.revert();
