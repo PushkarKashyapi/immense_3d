@@ -3,7 +3,7 @@
     Preloads a numbered WebP sequence and draws a frame onto a
     canvas (object-fit: cover). Frames are exported from the
     source video with:
-    ffmpeg -i in.mp4 -an -c:v libwebp -quality 70 out/%03d.webp
+    ffmpeg -i in.mp4 -an -c:v libwebp -quality 95 out/%03d.webp
 ========================================================== */
 
 export type FrameSequence = {
@@ -114,14 +114,11 @@ export function createFrameSequence(
     }
   }
 
-  let sized = false;
-
   for (const i of order) {
     const img = new Image();
     img.decoding = "async";
     img.onload = () => {
       loaded[i] = true;
-      if (!sized) resize(); // first frame tells us the source resolution
       // Redraw if this frame is a better match than what's on screen
       if (i === nearestLoaded(Math.round(playhead.frame))) draw(true);
     };
@@ -129,26 +126,12 @@ export function createFrameSequence(
     images[i] = img;
   }
 
-  /* -----------------------------------------------------------
-      Canvas backing store: never larger than the source frames
-      can fill. A 720p frame on a 2x screen gains no detail from
-      a 2x canvas, it only costs 4x the pixels per draw.
-  ----------------------------------------------------------- */
-
+  // Full-density backing store so upscaling uses the canvas's
+  // high-quality smoothing rather than the compositor's
   const resize = () => {
-    const ref = images.find((img, i) => img && loaded[i]);
-    const cssW = canvas.clientWidth;
-    const cssH = canvas.clientHeight;
-    let dpr = Math.min(window.devicePixelRatio || 1, 2);
-
-    if (ref) {
-      sized = true;
-      const cover = Math.max(cssW / ref.naturalWidth, cssH / ref.naturalHeight);
-      dpr = Math.min(dpr, Math.max(1, 1 / cover));
-    }
-
-    canvas.width = Math.round(cssW * dpr);
-    canvas.height = Math.round(cssH * dpr);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(canvas.clientWidth * dpr);
+    canvas.height = Math.round(canvas.clientHeight * dpr);
     ctx2d.imageSmoothingQuality = "high";
     draw(true);
   };
