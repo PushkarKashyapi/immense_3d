@@ -10,8 +10,8 @@ gsap.registerPlugin(ScrollTrigger);
 // Frames exported from /videos/animal.mp4 (241 frames @ 24fps)
 const AMENITIES_FRAME_COUNT = 241;
 
-// Frames exported from /videos/demo.mp4, downsampled to 12fps (181 frames)
-const THEATRE_FRAME_COUNT = 181;
+// Frames exported from /videos/demo.mp4 (361 frames @ 24fps)
+const THEATRE_FRAME_COUNT = 361;
 
 export default function Features() {
   /* ==========================================================
@@ -306,9 +306,9 @@ export default function Features() {
         scrollTrigger: {
           trigger: theatreRef.current,
           start: "top top",
-          end: "+=2600",
+          end: "+=4000",
           pin: true,
-          scrub: 2,
+          scrub: 1,
           anticipatePin: 1,
         },
       });
