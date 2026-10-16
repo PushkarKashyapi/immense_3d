@@ -120,10 +120,12 @@ export default function Proof() {
       },
     });
 
-    // Continuous floating motion after appearing
+    // Continuous floating motion after appearing.
+    // yPercent, not y: the entrance animates y, and a loop started
+    // mid-entrance would take that offset as its resting position.
     gsap.utils.toArray<HTMLElement>(".proof-card").forEach((card, i) => {
       gsap.to(card, {
-        y: -8,
+        yPercent: -3,
         rotateZ: i % 2 === 0 ? 0.4 : -0.4,
         duration: 5 + i * 0.4,
         repeat: -1,

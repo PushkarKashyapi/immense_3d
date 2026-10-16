@@ -44,7 +44,10 @@ export default function FormSection() {
         },
       });
 
-     /* ---------- Premium Floating Motion ---------- */
+     /* ---------- Premium Floating Motion ----------
+        Percent offsets and rotateZ only: the entrance animates x, y,
+        rotateY and scale, and a loop started mid-entrance would take
+        those in-between values as its resting pose. */
 
 const floatTL = gsap.timeline({
   repeat: -1,
@@ -56,19 +59,15 @@ const floatTL = gsap.timeline({
 
 floatTL
   .to(".blender-model", {
-    y: -22,
-    x: 10,
+    yPercent: -4.4,
+    xPercent: 2,
     rotateZ: 1.8,
-    rotateY: 3,
-    scale: 1.02,
     duration: 3.2,
   })
   .to(".blender-model", {
-    y: 14,
-    x: -8,
+    yPercent: 2.8,
+    xPercent: -1.6,
     rotateZ: -1.2,
-    rotateY: -2,
-    scale: 0.995,
     duration: 3.2,
   });
 

@@ -46,6 +46,8 @@ export default function Footer() {
         stagger: 0.05,
         duration: 0.8,
         ease: "power3.out",
+        // Hand transform back to CSS so the :hover slide works
+        clearProps: "transform,opacity",
         scrollTrigger: {
           trigger: ".footer-links",
           start: "top 88%",

@@ -104,6 +104,35 @@ export function createFrameSequence(
   let destroyed = false;
   let visible = true;
 
+  /* -----------------------------------------------------------
+      Visible-region decoding. A portrait phone only shows a
+      narrow vertical slice of each 16:9 frame (object-fit: cover),
+      so frames are decoded cropped to that slice: ~3x less bitmap
+      memory, identical pixels on screen. Learned from the first
+      decode; skipped when the crop would save little (desktop).
+  ----------------------------------------------------------- */
+  let sourceSize: [number, number] | null = null;
+  let crop: [number, number, number, number] | null = null;
+  let cropSupported = true;
+
+  const computeCrop = (): typeof crop => {
+    if (!sourceSize || !cropSupported || !canvas.width || !canvas.height) return null;
+    const [sw, sh] = sourceSize;
+    const canvasAspect = canvas.width / canvas.height;
+    const sourceAspect = sw / sh;
+    const rect: [number, number, number, number] =
+      canvasAspect < sourceAspect
+        ? [0, 0, Math.ceil(sh * canvasAspect), sh]
+        : [0, 0, sw, Math.ceil(sw / canvasAspect)];
+    rect[0] = Math.floor((sw - rect[2]) / 2);
+    rect[1] = Math.floor((sh - rect[3]) / 2);
+    // Only worth it when it drops at least a quarter of the pixels
+    return (rect[2] * rect[3]) / (sw * sh) < 0.75 ? rect : null;
+  };
+
+  const decode = (blob: Blob) =>
+    crop ? createImageBitmap(blob, ...crop) : createImageBitmap(blob);
+
   const target = () =>
     Math.round(Math.min(Math.max(playhead.frame, 0), frameCount - 1));
 
@@ -196,9 +225,14 @@ export function createFrameSequence(
       const i = nextToDecode();
       if (i < 0) return;
       decoding.add(i);
-      createImageBitmap(blobs[i]!)
+      const cropped = crop !== null;
+      decode(blobs[i]!)
         .then((bm) => {
           decoding.delete(i);
+          if (!sourceSize && !cropped) {
+            sourceSize = [bm.width, bm.height];
+            crop = computeCrop();
+          }
           const t = target();
           if (!visible || destroyed || Math.abs(i - t) > KEEP_RADIUS) {
             bm.close();
@@ -213,6 +247,11 @@ export function createFrameSequence(
         })
         .catch(() => {
           decoding.delete(i);
+          // Browsers without cropped createImageBitmap: decode whole frames
+          if (cropped) {
+            cropSupported = false;
+            crop = null;
+          }
           pump();
         });
     }
@@ -262,6 +301,13 @@ export function createFrameSequence(
     canvas.width = w;
     canvas.height = h;
     ctx2d.imageSmoothingQuality = "high";
+
+    // A new aspect ratio needs a new crop; re-decode at the new one
+    const next = computeCrop();
+    if (String(next) !== String(crop)) {
+      crop = next;
+      releaseBitmaps();
+    }
     draw(true);
   };
 

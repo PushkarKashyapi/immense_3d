@@ -101,7 +101,7 @@ export default function HeroSection() {
   return (
     // Tall scroll track; the inner stage stays pinned via sticky
     <section ref={sectionRef} className="relative h-[400vh] w-full bg-black">
-      <div className="sticky top-0 h-screen w-full overflow-hidden">
+      <div className="sticky top-0 h-svh w-full overflow-hidden">
         {/* Scroll-driven frame sequence */}
         <canvas
           ref={canvasRef}

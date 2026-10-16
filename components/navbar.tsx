@@ -4,10 +4,10 @@ import Link from "next/link";
 
 export default function Navbar() {
   return (
-    <header className="fixed top-7 left-1/2 -translate-x-1/2 z-50 w-[88%] max-w-[1120px]">
-      <nav className="relative flex h-16 items-center rounded-full bg-[#F4F4F4] px-3">
+    <header className="fixed top-[max(12px,env(safe-area-inset-top))] left-1/2 -translate-x-1/2 z-50 w-[calc(100%-24px)] max-w-[1120px] md:top-7 md:w-[88%]">
+      <nav className="relative flex h-14 items-center rounded-full bg-[#F4F4F4] px-2 md:h-16 md:px-3">
         {/* Left Logo */}
-        <Link href="/" className="flex items-center gap-3 pl-4 z-10">
+        <Link href="/" className="flex items-center gap-2.5 pl-3 z-10 md:gap-3 md:pl-4">
           <svg
             width="22"
             height="22"
@@ -51,8 +51,8 @@ export default function Navbar() {
         </div>
 
         {/* Right CTA */}
-        <div className="ml-auto pr-2 z-10">
-          <button className="h-11 rounded-full bg-black px-7 text-[13px] font-medium text-white transition-transform duration-300 hover:scale-[1.03]">
+        <div className="ml-auto pr-1 z-10 md:pr-2">
+          <button className="h-10 rounded-full bg-black px-5 text-[13px] font-medium text-white transition-transform duration-300 hover:scale-[1.03] md:h-11 md:px-7">
             Book a call
           </button>
         </div>

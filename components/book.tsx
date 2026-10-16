@@ -108,10 +108,12 @@ export default function Books() {
         },
       });
 
-      /* Floating breathing effect */
+      /* Floating breathing effect.
+         yPercent, not y: the entrance animates y, and a loop started
+         mid-entrance would take that offset as its resting position. */
 
       gsap.to(bookRef.current, {
-        y: -10,
+        yPercent: -1.4,
         duration: 4,
         repeat: -1,
         yoyo: true,

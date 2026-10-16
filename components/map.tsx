@@ -68,9 +68,11 @@ export default function MapSection() {
         }
       );
 
-      // Continuous Floating Motion
+      // Continuous Floating Motion.
+      // yPercent, not y: the entrance animates y, and a loop started
+      // mid-entrance would take that offset as its resting position.
       gsap.to(mapRef.current, {
-        y: -18,
+        yPercent: -2.4,
         rotateZ: 0.8,
         duration: 8,
         repeat: -1,
@@ -138,11 +140,14 @@ export default function MapSection() {
           {/* Floating Map */}
           <div
             ref={mapRef}
-            className="master-map relative h-[760px] overflow-hidden rounded-[42px] bg-[#F8F8F8]"
+            className="master-map relative aspect-[820/620] w-full overflow-hidden rounded-[28px] bg-[#F8F8F8] [container-type:size] lg:aspect-auto lg:h-[760px] lg:rounded-[42px]"
           >
             {/* Floating shadow */}
             <div className="absolute bottom-5 left-1/2 h-10 w-[70%] -translate-x-1/2 rounded-full bg-black/10 blur-[36px]" />
 
+            {/* Plan canvas: keeps the SVG's 820x620 proportions at any
+                size so the pins (positioned in % of it) stay on target */}
+            <div className="absolute inset-0 m-auto aspect-[820/620] w-[min(100cqw,calc(100cqh*820/620))]">
             <svg viewBox="0 0 820 620" className="absolute inset-0 h-full w-full">
               <defs>
                 <linearGradient id="surface" x1="0" x2="1">
@@ -326,27 +331,31 @@ export default function MapSection() {
               />
             </svg>
 
-            {/* Floating Number Pins */}
+            {/* Floating Number Pins: zero-size anchors on each plan point */}
             {points.map((point) => (
               <div
                 key={point.id}
-                className="map-pin absolute"
-                style={{ left: point.x, top: point.y }}
+                className="map-pin absolute size-0"
+                style={{
+                  left: `${(point.x / 820) * 100}%`,
+                  top: `${(point.y / 620) * 100}%`,
+                }}
               >
-                <div className="relative flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-black text-xs font-semibold text-white shadow-xl">
+                <div className="absolute flex size-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white bg-black text-[10px] font-semibold text-white shadow-xl sm:size-9 sm:text-xs">
                   {point.id}
                   <span className="absolute inset-0 rounded-full bg-black/20 animate-ping" />
                 </div>
 
-                <div className="marker-tooltip absolute left-11 top-1/2 -translate-y-1/2 rounded-xl bg-white px-4 py-2 whitespace-nowrap text-[11px] uppercase tracking-[0.22em] text-black shadow-2xl opacity-0 transition-all duration-300">
+                <div className="marker-tooltip absolute left-5 top-0 -translate-y-1/2 rounded-xl bg-white px-4 py-2 whitespace-nowrap text-[11px] uppercase tracking-[0.22em] text-black shadow-2xl opacity-0 transition-all duration-300 sm:left-7">
                   {point.title}
                 </div>
               </div>
             ))}
+            </div>
           </div>
 
           {/* Legend Panel */}
-          <div className="rounded-[34px] border border-black/5 bg-[#FAFAFA] p-10 shadow-[0_20px_60px_rgba(0,0,0,0.06)]">
+          <div className="rounded-[28px] border border-black/5 bg-[#FAFAFA] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.06)] sm:rounded-[34px] sm:p-10">
             <p className="text-[11px] uppercase tracking-[0.45em] text-black/40">
               LEGEND
             </p>

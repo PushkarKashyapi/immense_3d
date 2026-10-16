@@ -2244,8 +2244,6 @@ body {
   transform-style:preserve-3d;
   will-change:transform;
 
-  transition:transform 1.2s cubic-bezier(.19,1,.22,1);
-
   filter:
     drop-shadow(0 55px 90px rgba(255,255,255,.08))
     drop-shadow(0 18px 30px rgba(255,255,255,.04));
@@ -2262,7 +2260,6 @@ body {
   object-position:center;
 
   will-change:transform;
-  transition:transform 1.2s cubic-bezier(.19,1,.22,1);
 }
 
 /* Continuous floating motion */
@@ -2617,7 +2614,8 @@ body {
   box-shadow:0 15px 35px rgba(0,0,0,.12);
 }
 
-.map-marker:hover .marker-tooltip{
+.map-marker:hover .marker-tooltip,
+.map-pin:hover .marker-tooltip{
   opacity:1;
   transform:translateY(-50%) translateX(8px);
 }
@@ -3596,8 +3594,9 @@ body {
   will-change:transform, opacity, filter;
   transform-origin:center bottom;
 
+  /* no transform transition: GSAP animates transform, and a CSS
+     transition on it stalls the entrance at its starting scale */
   transition:
-    transform .65s cubic-bezier(.22,1,.36,1),
     box-shadow .65s ease,
     background .5s ease;
 }
@@ -3697,8 +3696,9 @@ body {
 
 .proof-arrow{
   position:absolute;
-  left:34px;
-  bottom:30px;
+  /* top-right: bottom-left sat on top of longer descriptions */
+  top:30px;
+  right:30px;
 
   width:48px;
   height:48px;
@@ -3873,8 +3873,8 @@ body {
   .proof-arrow{
     width:42px;
     height:42px;
-    left:24px;
-    bottom:22px;
+    top:22px;
+    right:22px;
   }
 
   .proof-footer{
@@ -4285,10 +4285,11 @@ body {
 }
 
 .footer-link{
+    display:inline-block;
     color:#111;
     font-size:15px;
     text-decoration:none;
-    transition:all .35s ease;
+    transition:color .35s ease, transform .35s ease;
 }
 
 .footer-link:hover{
@@ -4674,4 +4675,174 @@ body {
         font-size:10px;
     }
 
+}
+/* ==========================================================
+   MOBILE POLISH (phones and small tablets, <= 768px)
+   Kept last so it wins over the section rules above, and uses the
+   same 768px cut-off as their stacked "mobile" layouts.
+   --nav-clear is the space the fixed navbar occupies.
+========================================================== */
+
+:root{
+  --nav-clear:108px; /* md navbar: 28px top + 64px + 16px gap */
+}
+
+@media (max-width:767px){
+  :root{
+    /* compact navbar: safe-area top + 56px + 16px gap */
+    --nav-clear:calc(max(12px, env(safe-area-inset-top)) + 72px);
+  }
+}
+
+@media (max-width:768px){
+
+  /* ---------- Amenities video: content below the navbar ---------- */
+
+  .editorial-ui{
+    padding:var(--nav-clear) 18px calc(20px + env(safe-area-inset-bottom));
+  }
+
+  .editorial-left{
+    margin-top:0;
+  }
+
+  .feature-panel{
+    height:auto;
+    min-height:78px;
+  }
+
+  /* ---------- Walkthrough: video gets the screen, story sits low ---------- */
+
+  .story-panel{
+    top:auto;
+    bottom:calc(118px + env(safe-area-inset-bottom));
+    left:20px;
+    right:20px;
+  }
+
+  .story-title{
+    font-size:clamp(32px, 9.5vw, 40px);
+  }
+
+  .story-card{
+    margin-top:16px;
+  }
+
+  /* Static "walkthrough" card adds nothing on a phone and covered the video */
+  .story-floating-card{
+    display:none;
+  }
+
+  .story-progress{
+    bottom:calc(28px + env(safe-area-inset-bottom));
+  }
+
+  /* ---------- Book: previous / dots / next on one row ---------- */
+
+  .book-controls{
+    flex-direction:row;
+    justify-content:space-between;
+    align-items:center;
+    gap:12px;
+    margin-top:28px;
+    padding:0 4px;
+  }
+
+  .book-nav.previous,
+  .book-progress,
+  .book-nav.next{
+    order:0;
+  }
+
+  .book-nav{
+    gap:8px;
+    font-size:9px;
+    letter-spacing:.22em;
+  }
+
+  .book-nav svg{
+    width:40px;
+    height:40px;
+    padding:10px;
+  }
+
+  .book-nav:disabled{
+    opacity:.35;
+  }
+
+  .book-progress{
+    gap:6px;
+  }
+
+  .book-progress-dot{
+    width:10px;
+  }
+
+  .book-progress-dot.active{
+    width:26px;
+  }
+
+  /* ---------- Master plan ---------- */
+
+  .marker-tooltip{
+    left:18px;
+    padding:8px 12px;
+    font-size:10px;
+  }
+
+  /* ---------- Proof cards: arrow out of the text ---------- */
+
+  .proof-card{
+    min-height:0;
+    padding-right:72px;
+  }
+
+  .proof-arrow{
+    top:20px;
+    right:20px;
+    left:auto;
+    bottom:auto;
+    width:38px;
+    height:38px;
+  }
+
+  .proof-footer{
+    margin-top:56px;
+    text-align:center;
+  }
+
+  .proof-footer p{
+    white-space:normal;
+    font-size:10px;
+    line-height:2;
+    letter-spacing:.3em;
+  }
+
+  /* ---------- Form ---------- */
+
+  .mini-label{
+    text-align:center;
+    letter-spacing:.32em;
+  }
+}
+
+/* ==========================================================
+   TABLET POLISH (769px - 1024px)
+========================================================== */
+
+@media (min-width:769px) and (max-width:1024px){
+
+  /* Side-column amenity cards are too narrow for their descriptions */
+  .feature-panel p{
+    display:none;
+  }
+}
+
+@media (max-width:1024px){
+
+  /* The scroll hint collides with the progress labels below desktop;
+     the progress bar already says "keep scrolling" */
+  .theatre-scroll{
+    display:none;
+  }
 }
